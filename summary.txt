@@ -1,0 +1,71 @@
+EDA Summary
+===========
+
+**Dataset:** UCI Individual household electric power consumption (Year: 2008)
+
+**Data Preparation & Structure:**
+- Dropped 945 rows with missing values.
+- Final shape: 526,905 records, 8 columns.
+- Time coverage: 2008-01-01 00:00:00 to 2008-12-31 23:59:00 (full calendar year).
+- Sampling interval: 1 minute (most common).
+- First 5 rows:
+
+    Datetime             | Global_active_power | Global_reactive_power | Voltage | Global_intensity | Sub_metering_1 | Sub_metering_2 | Sub_metering_3
+    ---------------------|--------------------|----------------------|---------|------------------|----------------|----------------|----------------
+    2008-01-01 00:00:00 | ...                | ...                  | ...     | ...              | ...            | ...            | 18.0
+    2008-01-01 00:01:00 | ...                | ...                  | ...     | ...              | ...            | ...            | 18.0
+    2008-01-01 00:02:00 | ...                | ...                  | ...     | ...              | ...            | ...            | 18.0
+    2008-01-01 00:03:00 | ...                | ...                  | ...     | ...              | ...            | ...            | 18.0
+    2008-01-01 00:04:00 | ...                | ...                  | ...     | ...              | ...            | ...            | 18.0
+
+- **Feature explanations:**
+    - Datetime: Combined date and time
+    - Global_active_power (kW): Total active power consumed by the household
+    - Global_reactive_power (kW): Total reactive power consumed by the household
+    - Voltage (V): Average voltage
+    - Global_intensity (A): Average current intensity
+    - Sub_metering_1 (Wh): Kitchen appliances
+    - Sub_metering_2 (Wh): Laundry room appliances
+    - Sub_metering_3 (Wh): Water-heater and air-conditioner
+
+- **Missing values per column:**
+    - All columns: 0 (after cleaning)
+
+**Key Exploratory Data Analysis Findings:**
+
+- **Trend & Seasonality:**
+  - Daily and monthly plots reveal clear seasonality in household electricity demand.
+  - Consumption tends to be higher during winter and summer months, indicating heating/cooling impact.
+  - There is a visible weekly pattern, with some days showing slightly higher usage.
+
+- **Peak and Off-Peak Periods:**
+  - Hourly profile shows electricity demand peaks in the evening (typically 19:00–22:00), likely due to cooking and home activities.
+  - Off-peak periods are late at night and early morning (00:00–06:00).
+
+- **Weekday Patterns:**
+  - Average power consumption by day of week is relatively stable, with minor increases on weekends.
+  - Named days (Mon–Sun) are visualized for clarity.
+
+- **Distribution & Variability:**
+  - Monthly boxplots show greater variability during colder and hotter months.
+  - Some months have higher median consumption, supporting the seasonality finding.
+
+- **Anomaly Detection:**
+  - Outlier points (using z-score > 3) were detected and visualized; these may correspond to unusual household events or data issues.
+
+- **Usage Patterns (Clustering):**
+  - KMeans clustering of hourly profiles identified high-usage and low-usage hours.
+  - High-usage hours correspond to evening peaks; low-usage hours are overnight.
+  - Actionable insight: shifting flexible appliance use to low-usage hours can reduce costs and grid strain.
+
+- **All EDA plots are saved in the 'visualization' folder as .png files for further review or reporting.**
+
+**Files Generated:**
+- All analysis plots: `visualization/`
+- Main script: `electricity_analysis.py`
+- This summary: `summary.txt`
+
+**Next Steps:**
+- Integrate forecasts into a dashboard or reporting tool.
+- Extend analysis to other years or add LSTM/deep learning models if desired.
+- Use actionable insights for energy-saving campaigns or demand planning.

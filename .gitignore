@@ -1,0 +1,19 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Data
+household_power_consumption.zip
+household_power_consumption.txt
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Visualization outputs
+visualization/*.png
+visualization/.keep
+
+# OS files
+.DS_Store
+Thumbs.db
