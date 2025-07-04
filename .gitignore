@@ -11,7 +11,7 @@ household_power_consumption.txt
 .ipynb_checkpoints/
 
 # Visualization outputs
-visualization/*.png
+# visualization/*.png
 visualization/.keep
 
 # OS files
