@@ -1,278 +1,106 @@
-"""
-Electricity Demand Forecasting & Household Energy Consumption Analysis
+"""Reproducible 2008 single-household EDA and held-out daily forecasting."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+from urllib.request import urlopen
+from zipfile import ZipFile
 
-Step 1: Data Loading & Understanding
-- Loads the UCI Individual household electric power consumption dataset
-- Filters for the year 2008
-- Handles missing values
-- Explains features and dataset coverage
-
-Step 2: Exploratory Data Analysis (EDA)
-- Will be implemented after user validation
-"""
-import os
-import zipfile
-import urllib.request
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
-
-# 1. Download and extract dataset if needed
-DATA_URL = 'https://archive.ics.uci.edu/ml/machine-learning-databases/00235/household_power_consumption.zip'
-DATA_ZIP = 'household_power_consumption.zip'
-DATA_TXT = 'household_power_consumption.txt'
-
-if not os.path.exists(DATA_TXT):
-    if not os.path.exists(DATA_ZIP):
-        print('Downloading dataset...')
-        urllib.request.urlretrieve(DATA_URL, DATA_ZIP)
-    print('Extracting dataset...')
-    with zipfile.ZipFile(DATA_ZIP, 'r') as zip_ref:
-        zip_ref.extractall('.')
-
-# 2. Load data
-print("Loading data... (this may take a minute)")
-df = pd.read_csv(
-    DATA_TXT,
-    sep=';',
-    parse_dates={'Datetime': ['Date', 'Time']},
-    infer_datetime_format=True,
-    na_values=['?', 'NA'],
-    low_memory=False
-)
-
-# 3. Filter for year 2008
-start, end = '2008-01-01', '2008-12-31 23:59:59'
-df = df[(df['Datetime'] >= start) & (df['Datetime'] <= end)].copy()
-
-# 4. Handle missing values (drop for now)
-missing_before = df.isnull().sum().sum()
-df = df.dropna()
-missing_after = df.isnull().sum().sum()
-print(f"Dropped {missing_before - missing_after} rows with missing values.")
-
-# 5. Show first few rows
-print("\nFirst 5 rows:")
-print(df.head())
-
-# 6. Feature explanations
-feature_info = '''\nFeature explanations:\n- Datetime: Combined date and time\n- Global_active_power (kW): Total active power consumed by the household\n- Global_reactive_power (kW): Total reactive power consumed by the household\n- Voltage (V): Average voltage\n- Global_intensity (A): Average current intensity\n- Sub_metering_1 (Wh): Kitchen appliances\n- Sub_metering_2 (Wh): Laundry room appliances\n- Sub_metering_3 (Wh): Water-heater and air-conditioner\n'''
-print(feature_info)
-
-# 7. Data info and missing values
-print("\nData info:")
-df.info()
-print("\nMissing values per column:")
-print(df.isnull().sum())
-
-# 8. Time coverage and frequency
-print(f"\nEarliest timestamp: {df['Datetime'].min()}")
-print(f"Latest timestamp: {df['Datetime'].max()}")
-print(f"Total records: {len(df)}")
-# Calculate frequency (should be 1 min)
-freq = df['Datetime'].diff().mode()[0]
-print(f"Most common sampling interval: {freq}")
-
-# --- 2. Exploratory Data Analysis (EDA) ---
-print("\nPerforming Exploratory Data Analysis (EDA)...")
-import calendar
-from pandas.tseries.frequencies import to_offset
-
-def savefig(name):
-    path = os.path.join('visualization', name)
-    plt.savefig(path, bbox_inches='tight')
-    print(f"Saved: {path}")
-
-os.makedirs('visualization', exist_ok=True)
-
-# Resample to hourly, daily, weekly, monthly
-hourly = df.resample('H', on='Datetime').mean(numeric_only=True)
-daily = df.resample('D', on='Datetime').mean(numeric_only=True)
-weekly = df.resample('W', on='Datetime').mean(numeric_only=True)
-monthly = df.resample('M', on='Datetime').mean(numeric_only=True)
-
-# 1. Overall consumption trends over time
-plt.figure(figsize=(12,4))
-daily['Global_active_power'].plot()
-plt.title('Daily Global Active Power (kW) - 2008')
-plt.ylabel('kW')
-plt.xlabel('Date')
-savefig('daily_global_active_power.png')
-plt.close()
-
-plt.figure(figsize=(12,4))
-monthly['Global_active_power'].plot(marker='o')
-plt.title('Monthly Global Active Power (kW) - 2008')
-plt.ylabel('kW')
-plt.xlabel('Month')
-savefig('monthly_global_active_power.png')
-plt.close()
-
-# 2. Peak and off-peak periods (hourly profile)
-df['hour'] = df['Datetime'].dt.hour
-hourly_profile = df.groupby('hour')['Global_active_power'].mean()
-plt.figure(figsize=(8,4))
-hourly_profile.plot()
-plt.title('Average Hourly Power Consumption (kW)')
-plt.xlabel('Hour of Day')
-plt.ylabel('kW')
-savefig('hourly_profile.png')
-plt.close()
-
-# 3. Distribution by weekday/weekend
-weekdays = df['Datetime'].dt.weekday
-weekday_profile = df.groupby(weekdays)['Global_active_power'].mean()
-weekday_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-plt.figure(figsize=(8,4))
-plt.plot(weekday_names, weekday_profile.values, marker='o')
-plt.title('Average Power Consumption by Day of Week')
-plt.xlabel('Day of Week')
-plt.ylabel('kW')
-plt.xticks(rotation=30)
-savefig('weekday_profile.png')
-plt.close()
-
-# 4. Seasonal (monthly) distribution
-monthly_box = df.copy()
-monthly_box['month'] = monthly_box['Datetime'].dt.month
-plt.figure(figsize=(10,5))
-sns.boxplot(x='month', y='Global_active_power', data=monthly_box)
-plt.title('Monthly Distribution of Power Consumption (kW)')
-plt.xlabel('Month')
-plt.ylabel('kW')
-savefig('monthly_boxplot.png')
-plt.close()
-
-# 5. Anomaly detection (simple: z-score)
-from scipy.stats import zscore
-z = np.abs(zscore(df['Global_active_power']))
-anomalies = df[z > 3]
-plt.figure(figsize=(12,4))
-plt.plot(df['Datetime'], df['Global_active_power'], label='Normal')
-plt.scatter(anomalies['Datetime'], anomalies['Global_active_power'], color='r', label='Anomaly', s=10)
-plt.title('Anomaly Detection in Global Active Power')
-plt.xlabel('Date')
-plt.ylabel('kW')
-plt.legend()
-savefig('anomaly_detection.png')
-plt.close()
-
-# --- 3. Household Energy Usage Patterns (Clustering) ---
-print("\nAnalyzing household energy usage patterns (clustering)...")
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
-
-# Typical daily profile (average per hour)
-daily_profiles = df.groupby(['Datetime']).agg({'Global_active_power':'mean'})
-daily_profiles['hour'] = df['Datetime'].dt.hour.values
-daily_profiles = df.groupby(['hour'])['Global_active_power'].mean().values.reshape(-1,1)
-scaler = StandardScaler()
-daily_scaled = scaler.fit_transform(daily_profiles)
-
-# KMeans clustering (let's use 2 clusters: high vs low usage)
-kmeans = KMeans(n_clusters=2, random_state=42, n_init=10)
-labels = kmeans.fit_predict(daily_scaled)
-
-plt.figure(figsize=(8,4))
-plt.scatter(range(24), daily_profiles.flatten(), c=labels, cmap='coolwarm', s=60)
-plt.title('Clustered Hourly Usage Profiles (High vs Low)')
-plt.xlabel('Hour of Day')
-plt.ylabel('Avg Power (kW)')
-savefig('clustered_hourly_usage.png')
-plt.close()
-
-# Actionable insights
-print("\nCluster 0: {}\nCluster 1: {}".format(
-    'High usage' if kmeans.cluster_centers_[0][0]>kmeans.cluster_centers_[1][0] else 'Low usage',
-    'High usage' if kmeans.cluster_centers_[1][0]>kmeans.cluster_centers_[0][0] else 'Low usage'))
-print("Suggest: For high-usage hours, shift flexible loads to off-peak times.")
-
-# --- 4. Time-Series Forecasting ---
-print("\nPreparing time-series forecasting...")
-from statsmodels.tsa.seasonal import seasonal_decompose
+import numpy as np
+import pandas as pd
+from sklearn.metrics import mean_absolute_error, root_mean_squared_error
 from statsmodels.tsa.statespace.sarimax import SARIMAX
-from prophet import Prophet
-from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-# Use daily data for forecasting
-df_daily = df.set_index('Datetime').resample('D').mean(numeric_only=True)
-df_daily = df_daily[['Global_active_power']]
-df_daily = df_daily.asfreq('D')
+SOURCE = "https://archive.ics.uci.edu/static/public/235/individual+household+electric+power+consumption.zip"
 
-# Fill any remaining missing days by interpolation
-df_daily = df_daily.interpolate()
 
-# Decompose
-decomp = seasonal_decompose(df_daily['Global_active_power'], model='additive', period=7)
-fig = decomp.plot()
-for ax in fig.axes:
-    for label in ax.get_xticklabels():
-        label.set_rotation(45)
-fig.tight_layout()
-savefig('seasonal_decompose.png')
-plt.close(fig)
+def get_data(path: Path, download: bool) -> Path:
+    if path.exists():
+        return path
+    if not download:
+        raise FileNotFoundError(f"Missing {path}. Pass --download to fetch the UCI archive.")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    archive = path.with_suffix(".zip")
+    with urlopen(SOURCE, timeout=120) as response:
+        payload = response.read()
+    if not payload:
+        raise RuntimeError("UCI returned an empty archive")
+    archive.write_bytes(payload)
+    with ZipFile(archive) as zf:
+        with zf.open("household_power_consumption.txt") as source:
+            path.write_bytes(source.read())
+    return path
 
-# SARIMA model (simple seasonal)
-print("\nTraining SARIMA model...")
-sarima = SARIMAX(df_daily['Global_active_power'], order=(1,1,1), seasonal_order=(1,1,1,7))
-sarima_fit = sarima.fit(disp=False)
-forecast_sarima = sarima_fit.forecast(steps=30)
 
-plt.figure(figsize=(12,4))
-plt.plot(df_daily.index, df_daily['Global_active_power'], label='Actual')
-plt.plot(pd.date_range(df_daily.index[-1], periods=31, freq='D')[1:], forecast_sarima, label='SARIMA Forecast')
-plt.title('SARIMA Forecast (Next 30 Days)')
-plt.xlabel('Date')
-plt.ylabel('kW')
-plt.legend()
-savefig('sarima_forecast.png')
-plt.close()
+def load_daily(path: Path) -> tuple[pd.Series, pd.DataFrame]:
+    frame = pd.read_csv(path, sep=";", na_values=["?"], low_memory=False)
+    required = {"Date", "Time", "Global_active_power"}
+    if not required.issubset(frame):
+        raise ValueError(f"Missing columns: {sorted(required - set(frame))}")
+    frame["Datetime"] = pd.to_datetime(frame["Date"] + " " + frame["Time"], dayfirst=True, errors="coerce")
+    frame["Global_active_power"] = pd.to_numeric(frame["Global_active_power"], errors="coerce")
+    frame = frame.loc[frame["Datetime"].dt.year.eq(2008)].dropna(subset=["Datetime", "Global_active_power"])
+    frame = frame.sort_values("Datetime")
+    if frame.empty:
+        raise ValueError("No valid 2008 observations")
+    daily = frame.set_index("Datetime")["Global_active_power"].resample("D").mean()
+    if daily.isna().any():
+        raise ValueError("Whole missing days require an explicit imputation policy")
+    return daily, frame
 
-# Prophet model
-print("\nTraining Prophet model...")
-df_prophet = df_daily.reset_index().rename(columns={'Datetime':'ds','Global_active_power':'y'})
-m = Prophet(yearly_seasonality=True, daily_seasonality=False, weekly_seasonality=True)
-m.fit(df_prophet)
-future = m.make_future_dataframe(periods=30)
-forecast = m.predict(future)
 
-plt.figure(figsize=(12,4))
-plt.plot(df_daily.index, df_daily['Global_active_power'], label='Actual')
-plt.plot(forecast['ds'], forecast['yhat'], label='Prophet Forecast')
-plt.title('Prophet Forecast (Next 30 Days)')
-plt.xlabel('Date')
-plt.ylabel('kW')
-plt.legend()
-savefig('prophet_forecast.png')
-plt.close()
+def split_daily(daily: pd.Series, holdout: int = 30) -> tuple[pd.Series, pd.Series]:
+    if not daily.index.is_monotonic_increasing or daily.index.has_duplicates:
+        raise ValueError("Daily series must have unique chronological dates")
+    if len(daily) <= holdout + 14:
+        raise ValueError("Need at least 14 training days beyond the holdout")
+    return daily.iloc[:-holdout], daily.iloc[-holdout:]
 
-# Evaluation (use last 30 days as test)
-test = df_daily[-30:]
-train = df_daily[:-30]
-# SARIMA
-sarima_fit2 = SARIMAX(train['Global_active_power'], order=(1,1,1), seasonal_order=(1,1,1,7)).fit(disp=False)
-pred_sarima = sarima_fit2.forecast(steps=30)
-mae_sarima = mean_absolute_error(test, pred_sarima)
-rmse_sarima = np.sqrt(mean_squared_error(test, pred_sarima))
-mape_sarima = np.mean(np.abs((test.values.flatten()-pred_sarima.values.flatten())/test.values.flatten()))*100
-# Prophet
-df_train = train.reset_index().rename(columns={'Datetime':'ds','Global_active_power':'y'})
-m2 = Prophet(yearly_seasonality=True, daily_seasonality=False, weekly_seasonality=True)
-m2.fit(df_train)
-future2 = m2.make_future_dataframe(periods=30)
-forecast2 = m2.predict(future2)
-pred_prophet = forecast2['yhat'][-30:].values
-mae_prophet = mean_absolute_error(test.values.flatten(), pred_prophet)
-rmse_prophet = np.sqrt(mean_squared_error(test.values.flatten(), pred_prophet))
-mape_prophet = np.mean(np.abs((test.values.flatten()-pred_prophet)/test.values.flatten()))*100
 
-print(f"\nForecast evaluation (last 30 days):")
-print(f"SARIMA - MAE: {mae_sarima:.3f}, RMSE: {rmse_sarima:.3f}, MAPE: {mape_sarima:.2f}%")
-print(f"Prophet - MAE: {mae_prophet:.3f}, RMSE: {rmse_prophet:.3f}, MAPE: {mape_prophet:.2f}%")
+def seasonal_naive(train: pd.Series, horizon: int) -> np.ndarray:
+    return np.resize(train.iloc[-7:].to_numpy(), horizon)
 
-# --- 5. Results, Insights & Recommendations ---
-summary = '''\nKey Findings:\n- Daily and monthly trends reveal clear seasonality and higher usage during winter/summer.\n- Peak hours are in the evening; off-peak at night.\n- Clustering identifies high-usage hours: recommend shifting flexible loads to off-peak.\n- Both SARIMA and Prophet models provide good forecasts; Prophet slightly outperforms SARIMA on this data.\n- Underestimating peaks can risk grid overload; mitigation: conservative planning, demand response programs.\n\nDeployment Suggestion:\n- Wrap forecasting code in a REST API (Flask/FastAPI) for integration into dashboards.\n- Visualizations can be embedded in BI tools or web dashboards.\n'''
-print(summary)
 
-print("All visualizations are saved in the 'visualization' folder as .png files.")
+def evaluate(daily: pd.Series, holdout: int = 30) -> dict:
+    train, test = split_daily(daily, holdout)
+    predictions = {"seasonal_naive_7d": seasonal_naive(train, len(test))}
+    fit = SARIMAX(train, order=(1, 1, 1), seasonal_order=(1, 1, 1, 7),
+                  enforce_stationarity=False, enforce_invertibility=False).fit(disp=False)
+    predictions["sarima_111_1117"] = fit.forecast(len(test)).to_numpy()
+    return {
+        "train_end": str(train.index[-1].date()), "test_start": str(test.index[0].date()),
+        "test_end": str(test.index[-1].date()), "holdout_days": len(test),
+        "target": "daily mean minute-averaged active power (kW)",
+        "metrics": {name: {"mae_kw": float(mean_absolute_error(test, values)),
+                            "rmse_kw": float(root_mean_squared_error(test, values))}
+                    for name, values in predictions.items()},
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data", type=Path, default=Path("data/household_power_consumption.txt"))
+    parser.add_argument("--download", action="store_true")
+    parser.add_argument("--output", type=Path, default=Path("results"))
+    args = parser.parse_args()
+    path = get_data(args.data, args.download)
+    daily, frame = load_daily(path)
+    results = evaluate(daily)
+    results["source"] = SOURCE
+    results["input_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    results["valid_2008_minute_rows"] = len(frame)
+    args.output.mkdir(parents=True, exist_ok=True)
+    (args.output / "validation.json").write_text(json.dumps(results, indent=2) + "\n")
+    plt.figure(figsize=(11, 4))
+    daily.plot()
+    plt.ylabel("Daily mean active power (kW)")
+    plt.title("One household, 2008")
+    plt.tight_layout()
+    plt.savefig(args.output / "daily_power.png")
+    plt.close()
+    print(json.dumps(results, indent=2))
+
+
+if __name__ == "__main__":
+    main()
